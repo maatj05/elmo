@@ -4,11 +4,11 @@ from fontTools.pens.svgPathPen import SVGPathPen
 from fontTools.pens.transformPen import TransformPen
 from fontTools.pens.boundsPen import BoundsPen
 
-F = '/tmp/claude-0/-home-user-elmo/a7411fc2-5360-5051-9ebd-b0590e782c0c/scratchpad/f/'
+F = __import__('os').path.join(__import__('os').path.dirname(__file__), 'fonts') + '/'
 random.seed(7)
 
 
-def text_path(fontfile, text, size, cx, baseline, tracking=0, max_w=None):
+def text_path(fontfile, text, size, cx, baseline, tracking=0, max_w=None, hscale=1.0, left=None):
     font = TTFont(fontfile)
     gs = font.getGlyphSet()
     cmap = font.getBestCmap()
@@ -17,15 +17,15 @@ def text_path(fontfile, text, size, cx, baseline, tracking=0, max_w=None):
     names = [cmap[ord(c)] for c in text]
     adv = sum(hmtx[n][0] for n in names) + tracking * (len(names) - 1)
     s = size / upm
-    if max_w and adv * s > max_w:
-        s = max_w / adv
-    width = adv * s
-    x = cx - width / 2
+    if max_w and adv * s * hscale > max_w:
+        s = max_w / (adv * hscale)
+    width = adv * s * hscale
+    x = cx - width / 2 if left is None else left
     pen = SVGPathPen(gs)
     for n in names:
-        tp = TransformPen(pen, (s, 0, 0, -s, x, baseline))
+        tp = TransformPen(pen, (s * hscale, 0, 0, -s, x, baseline))
         gs[n].draw(tp)
-        x += (hmtx[n][0] + tracking) * s
+        x += (hmtx[n][0] + tracking) * s * hscale
     return pen.getCommands(), width
 
 
@@ -153,32 +153,44 @@ o(f'<path d="{star4(565, 300, 18, 0.18)}" fill="#fff" opacity="0.9"/>')
 o(f'<circle cx="438" cy="195" r="9" fill="#fff"/>')
 
 # sparkles around
-for (x, y, r, c) in [(250, 160, 30, '#ffd23f'), (770, 140, 24, '#ff7be0'), (215, 330, 16, '#6fe3ff'),
-                     (790, 330, 34, '#ffd23f'), (330, 90, 14, '#fff'), (690, 95, 12, '#fff'),
+for (x, y, r, c) in [(250, 160, 30, '#ffd23f'), (770, 140, 24, '#ff7be0'), (130, 470, 16, '#6fe3ff'),
+                     (880, 470, 22, '#ffd23f'), (330, 90, 14, '#fff'), (690, 95, 12, '#fff'),
                      (130, 520, 18, '#ff7be0'), (880, 520, 18, '#6fe3ff')]:
     o(f'<path d="{star4(x, y, r)}" fill="{c}"/>')
 
-# ---- title: GLITTER ----
-g_d, g_w = text_path(F + 'fredoka.ttf', 'GLITTER', 190, 500, 585, tracking=10, max_w=760)
-o('<g>')
-o(f'<path d="{g_d}" transform="translate(0,10)" fill="#3a0a5e" stroke="#3a0a5e" stroke-width="34" stroke-linejoin="round"/>')
-o(f'<path d="{g_d}" fill="#fff" stroke="#fff" stroke-width="30" stroke-linejoin="round"/>')
-o(f'<path d="{g_d}" fill="none" stroke="#ff3fb4" stroke-width="16" stroke-linejoin="round"/>')
-o(f'<path d="{g_d}" fill="url(#gold)"/>')
-o(f'<path d="{g_d}" fill="url(#glitter)"/>')
-o('</g>')
+# ---- title: tall condensed Didone lettering (after the old "Disco Carnaval" poster) ----
+# Bodoni Moda Black, horizontally condensed, mimics the Onyx-style letters of the old poster:
+# a giant initial G with LITTER on its baseline-half, and "disco" in the glowing outline style.
+CAP = 1500 / 2000  # cap height / em of Bodoni Moda
+HS = 0.58
+G_CAP, SMALL_CAP = 340, 140
+G_BASE = 790
+g_size = G_CAP / CAP
+s_size = SMALL_CAP / CAP
+_, gw = text_path(F + 'bodoni.ttf', 'G', g_size, 0, 0, hscale=HS)
+_, lw = text_path(F + 'bodoni.ttf', 'LITTER', s_size, 0, 0, tracking=20, hscale=HS)
+gap = 6
+x0 = 500 - (gw + gap + lw) / 2
+gd, _ = text_path(F + 'bodoni.ttf', 'G', g_size, 0, G_BASE, hscale=HS, left=x0)
+lit_base = G_BASE - G_CAP + SMALL_CAP + 18
+ld, _ = text_path(F + 'bodoni.ttf', 'LITTER', s_size, 0, lit_base, tracking=20, hscale=HS, left=x0 + gw + gap)
+o('<filter id="softglow" x="-20%" y="-30%" width="140%" height="160%"><feGaussianBlur stdDeviation="7"/></filter>')
+o('<filter id="shadow" x="-10%" y="-10%" width="130%" height="130%"><feGaussianBlur stdDeviation="4"/></filter>')
+for d in (gd, ld):
+    o(f'<path d="{d}" transform="translate(6,8)" fill="#14062e" opacity="0.6" filter="url(#shadow)"/>')
+    o(f'<path d="{d}" fill="#fff"/>')
+    o(f'<path d="{d}" fill="url(#glitter)" opacity="0.55"/>')
 
-# ---- title: disco (script) ----
-d_d, d_w = text_path(F + 'pacifico.ttf', 'disco', 175, 485, 760, max_w=480)
-o(f'<path d="{d_d}" transform="translate(0,9)" fill="#3a0a5e" stroke="#3a0a5e" stroke-width="30" stroke-linejoin="round"/>')
-o(f'<path d="{d_d}" fill="#fff" stroke="#fff" stroke-width="24" stroke-linejoin="round"/>')
-o(f'<path d="{d_d}" fill="url(#pink)"/>')
-o(f'<path d="{d_d}" fill="url(#glitterPink)"/>')
-# ✨ next to disco
-sx = 485 + d_w / 2 + 50
-o(f'<path d="{star4(sx, 640, 44, 0.2)}" fill="#ffd23f" stroke="#fff" stroke-width="5" stroke-linejoin="round"/>')
-o(f'<path d="{star4(sx + 42, 700, 22, 0.2)}" fill="#fff4b0" stroke="#fff" stroke-width="3" stroke-linejoin="round"/>')
-o(f'<path d="{star4(sx - 30, 715, 14, 0.2)}" fill="#fff" />')
+# "disco" in the CARNAVAL style: pink letters with a soft white glow + white hairline
+dd, dw = text_path(F + 'bodoni.ttf', 'DISCO', s_size, 0, G_BASE, tracking=20, hscale=HS, left=x0 + gw + gap)
+o(f'<path d="{dd}" fill="none" stroke="#fff" stroke-width="12" stroke-linejoin="round" filter="url(#softglow)"/>')
+o(f'<path d="{dd}" fill="none" stroke="#fff" stroke-width="5" stroke-linejoin="round"/>')
+o(f'<path d="{dd}" fill="url(#pink)"/>')
+o(f'<path d="{dd}" fill="url(#glitterPink)"/>')
+# ✨ next to DISCO
+sx = x0 + gw + gap + dw + 38
+o(f'<path d="{star4(sx, G_BASE - 110, 40, 0.2)}" fill="#ffd23f" stroke="#fff" stroke-width="5" stroke-linejoin="round"/>')
+o(f'<path d="{star4(sx + 30, G_BASE - 40, 18, 0.2)}" fill="#fff4b0" stroke="#fff" stroke-width="3" stroke-linejoin="round"/>')
 
 # ---- ribbon banner ----
 ry, rh = 815, 92
@@ -206,8 +218,8 @@ def tree(x, y, s):
     return ''.join(g)
 
 
-o(tree(165, 690, 0.95))
-o(tree(845, 690, 0.8))
+o(tree(215, 330, 0.85))
+o(tree(785, 330, 0.85))
 o('</svg>')
 
 open('/home/user/elmo/glitterdisco-logo.svg', 'w').write('\n'.join(out))
